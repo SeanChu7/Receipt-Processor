@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"math"
 	"net/http"
 	"regexp"
@@ -13,8 +12,8 @@ import (
 )
 
 type item struct {
-	shortDescription string `json:"shortDescription"`
-	price            string `json:"price"`
+	ShortDescription string `json:"shortDescription"`
+	Price            string `json:"price"`
 }
 
 type receipt struct {
@@ -25,6 +24,8 @@ type receipt struct {
 	Total        string `json:"total"`
 }
 
+var receipts map[int]int //Receipts is a dictionary with ID keys and Point values
+var Id int               //Stored Receipt ID
 // Calculate points for a given receipt, returns number of points
 func calcPoints(r receipt) int {
 	var pointTotal int
@@ -64,9 +65,9 @@ func calcPoints(r receipt) int {
 	//Calculate points for items
 	pointTotal = pointTotal + ((len(r.Items) / 2) * 5)
 	for i := 0; i < len(r.Items); i++ {
-		desc := strings.Trim(r.Items[i].shortDescription, " ")
+		desc := strings.Trim(r.Items[i].ShortDescription, " ")
 		if length := utf8.RuneCountInString(desc); length%3 == 0 {
-			if itemPrice, err := strconv.ParseFloat(r.Items[i].price, 32); err == nil {
+			if itemPrice, err := strconv.ParseFloat(r.Items[i].Price, 32); err == nil {
 				num, frac := math.Modf(itemPrice * .2)
 				var point int
 				if frac > 0 {
@@ -90,57 +91,40 @@ func postReceipts(c *gin.Context) {
 		return
 	}
 	points := calcPoints(newReceipt)
-	fmt.Println(points)
-	c.IndentedJSON(http.StatusCreated, newReceipt)
+	Id = Id + 1
+	receipts[Id] = points
+	holder := struct {
+		ID int
+	}{
+		Id,
+	}
+	c.IndentedJSON(http.StatusOK, holder)
 }
 
+func getReceiptsByID(c *gin.Context) {
+	if i, err := strconv.Atoi(c.Param("id")); err != nil {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "Invalid ID"})
+	} else {
+		if point := receipts[i]; point != 0 {
+			pointHolder := struct {
+				Points int
+			}{
+				point,
+			}
+			c.IndentedJSON(http.StatusOK, pointHolder)
+		} else {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"message": "Invalid ID"})
+		}
+	}
+}
 func main() {
-	//receipts:= make(map[int]int) //Receipts is a dictionary with ID keys and Point values
+	//Initialize globals
+	receipts = make(map[int]int)
+	Id = 0
+
+	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 	router.POST("/receipts", postReceipts)
-
-	r := receipt{
-		Retailer:     "Target",
-		Purchasedate: "2022-01-01",
-		Purchasetime: "13:01",
-		Items: []item{
-			{
-				shortDescription: "Mountain Dew 12PK",
-				price:            "6.49",
-			}, {
-				shortDescription: "Emils Cheese Pizza",
-				price:            "12.25",
-			}, {
-				shortDescription: "Knorr Creamy Chicken",
-				price:            "1.26",
-			}, {
-				shortDescription: "Doritos Nacho Cheese",
-				price:            "3.35",
-			}, {
-				shortDescription: "   Klarbrunn 12-PK 12 FL OZ   ",
-				price:            "12.00",
-			}},
-		Total: "35.35"}
-	/*r2 := receipt{
-	Retailer:     "M&M Corner Market",
-	Purchasedate: "2022-03-20",
-	Purchasetime: "14:33",
-	Items: []item{
-		{
-			shortDescription: "Gatorade",
-			price:            "2.25",
-		}, {
-			shortDescription: "Gatorade",
-			price:            "2.25",
-		}, {
-			shortDescription: "Gatorade",
-			price:            "2.25",
-		}, {
-			shortDescription: "Gatorade",
-			price:            "2.25",
-		}},
-	Total: "9.00"}*/
-	points := calcPoints(r)
-	fmt.Println(points)
+	router.GET("/receipts/:id", getReceiptsByID)
 	router.Run("localhost:8080")
 }
