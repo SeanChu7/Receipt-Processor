@@ -125,6 +125,6 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 	router.POST("/receipts/process", postReceipts)
-	router.GET("/receipts/:id", getReceiptsByID)
+	router.GET("/receipts/:id/points", getReceiptsByID)
 	router.Run("0.0.0.0:8080")
 }
